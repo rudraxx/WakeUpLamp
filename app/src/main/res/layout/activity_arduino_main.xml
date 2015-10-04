@@ -126,7 +126,7 @@
         android:inputType="number"
         android:id="@+id/eSetHour"
         android:layout_alignTop="@+id/bSethour"
-        android:layout_toEndOf="@+id/bDisableBlueTooth" />
+        android:layout_toStartOf="@+id/bSound" />
 
     <Button
         android:layout_width="wrap_content"
@@ -144,6 +144,16 @@
         android:textSize="40sp"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true" />
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:hint="setmin"
+        android:inputType="number"
+        android:id="@+id/eSetMin"
+        android:layout_alignTop="@+id/bSethour"
+        android:layout_alignStart="@+id/bSound" />
 
 
 </RelativeLayout>
