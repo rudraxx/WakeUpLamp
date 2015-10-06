@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
@@ -12,9 +13,12 @@ import android.os.Handler;
 import android.support.v7.app.ActionBarActivity;
 import android.text.format.DateUtils;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.SeekBar;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -27,9 +31,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.util.Calendar;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 
 public class ArduinoMain extends ActionBarActivity {
@@ -81,6 +89,9 @@ public class ArduinoMain extends ActionBarActivity {
     Integer intMins = 6;
     Integer intFlag=0;
     private volatile boolean done = false;
+    Spinner spinner;
+    ArrayAdapter<CharSequence> spinAdapter;
+    String strSongName;
 
     public String fileName = "File_1.txt"; // Make sure the extension is present.
     // variables for calculating the sleep hours;
@@ -90,11 +101,12 @@ public class ArduinoMain extends ActionBarActivity {
     public long differenceInMinutes;
     public int startMusicFlag = 0;
     public long startLEDmillis;
-    public int LEDflag = 0;
+    public int setLEDinitTimeflag = 0;
     public int  intTestTimeinSec = 0;
     public int intTestTimeinMin = 0;
     public int startLEDloop =0;
     public int iFlagStartMediaplayer = 0;
+    public int resID=0;
     /**
      * Called when the activity is first created.
      */
@@ -118,10 +130,37 @@ public class ArduinoMain extends ActionBarActivity {
         final Button disconnect = (Button) findViewById(R.id.bDisableBlueTooth);
         final Button buttonSound = (Button) findViewById(R.id.bSound);
         buttonStop = (Button) findViewById(R.id.bStop);
-        mediaPlayer = MediaPlayer.create(this,R.raw.mom_voice_recording);// R.raw.birdysong);
         buttonSetHour = (Button) findViewById(R.id.bSethour);
         editsethour = (EditText) findViewById(R.id.eSetHour);
         editsetMinutes = (EditText) findViewById(R.id.eSetMin);
+        mediaPlayer = new MediaPlayer();
+        mediaPlayer = MediaPlayer.create(ArduinoMain.this,R.raw.birdysong);
+
+        spinner        = (Spinner) findViewById(R.id.spinner);
+        spinAdapter   = ArrayAdapter.createFromResource(this,R.array.songNames,android.R.layout.simple_spinner_item);
+        spinAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(spinAdapter);
+
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                strSongName = parent.getItemAtPosition(position).toString();
+                Toast.makeText(getBaseContext(),strSongName +" selected",Toast.LENGTH_SHORT).show();
+                String fname=strSongName.toLowerCase();
+                resID=getResources().getIdentifier(fname, "raw", getPackageName());
+
+                mediaPlayer.release();
+                mediaPlayer=MediaPlayer.create(ArduinoMain.this, resID);
+
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
+
+
         //Get MAC address from WakeUpLampActivity
         Intent intent = getIntent();
         newAddress = intent.getStringExtra(WakeUpLamp.EXTRA_DEVICE_ADDRESS);
@@ -157,6 +196,7 @@ public class ArduinoMain extends ActionBarActivity {
         //When activity is resumed, attempt to send a piece of junk data ('x') so that it will fail if not connected
         // i.e don't wait for a user to press button to recognise connection failure
         sendData("x");
+
         mHandler = new Handler();
         startRepeatingTask();
 
@@ -189,9 +229,10 @@ public class ArduinoMain extends ActionBarActivity {
                         mediaPlayer.stop();
                         mediaPlayer.release();
                     }
+                    mHandler.removeCallbacks(mStatusChecker);
 
                     // Reset the flags:
-                    LEDflag=0;
+                    setLEDinitTimeflag=0;
                     startLEDloop=0;
 //                    btAdapter.disable();
                     Toast.makeText(getBaseContext(), "Done disabling", Toast.LENGTH_SHORT).show();
@@ -222,13 +263,8 @@ public class ArduinoMain extends ActionBarActivity {
                     // Need this startMusicFlag so that the start and stop music button can
                     // be used without interference from the runnable loop
                     startMusicFlag=0;
-                    mediaPlayer.stop();
-                    try {
-                        mediaPlayer.prepare();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    mediaPlayer.seekTo(0);
+                    mediaPlayer.release();
+                    mediaPlayer=MediaPlayer.create(ArduinoMain.this, resID);
                 } catch (IllegalStateException e) {
                     e.printStackTrace();
                     Toast.makeText(ArduinoMain.this,"Unable to close Mediaplayer",Toast.LENGTH_SHORT).show();
@@ -246,6 +282,8 @@ public class ArduinoMain extends ActionBarActivity {
 //                fileName = "File_1";//+cal.getTime().toString(); // THis is where the filename to be saved gets assigned.
 
                 Toast.makeText(ArduinoMain.this,"FileName: "+fileName,Toast.LENGTH_SHORT).show();
+                mediaPlayer.release();
+                mediaPlayer=MediaPlayer.create(ArduinoMain.this, resID);
 
                 startTime = System.currentTimeMillis();
                 writeFile(fileName, cal.getTime().toString(), 1);
@@ -293,7 +331,7 @@ public class ArduinoMain extends ActionBarActivity {
         }
         mHandler.removeCallbacks(mStatusChecker);
         // Reset the flags:
-        LEDflag=0;
+        setLEDinitTimeflag=0;
         startLEDloop=0;
 
 
@@ -349,6 +387,10 @@ public class ArduinoMain extends ActionBarActivity {
         }
     };
 
+//    ExecutorService threadPoolExecutor = Executors.newSingleThreadExecutor();
+//
+//    Future mStatusCheckerFuture = threadPoolExecutor.submit(mStatusChecker);
+
 
     public void updateStatus(){
         cal = Calendar.getInstance();
@@ -380,9 +422,9 @@ public class ArduinoMain extends ActionBarActivity {
 
                 if (startLEDloop==1) {
 
-                    if (LEDflag==0){
+                    if (setLEDinitTimeflag==0){
                         startLEDmillis = System.currentTimeMillis();
-                        LEDflag=1;
+                        setLEDinitTimeflag=1;
                         iFlagStartMediaplayer=1;
                     }
                     intTestTimeinSec = (int) ((System.currentTimeMillis()-startLEDmillis)/(DateUtils.SECOND_IN_MILLIS));
@@ -394,6 +436,7 @@ public class ArduinoMain extends ActionBarActivity {
 
                             try {
                                 mediaPlayer.start();
+                                Toast.makeText(ArduinoMain.this,"Part A",Toast.LENGTH_SHORT).show();
                                 iFlagStartMediaplayer=2;
                             } catch (IllegalStateException e) {
                                 e.printStackTrace();
@@ -419,6 +462,7 @@ public class ArduinoMain extends ActionBarActivity {
 
                             try {
                                 mediaPlayer.start();
+                                Toast.makeText(ArduinoMain.this,"Part B",Toast.LENGTH_SHORT).show();
                                 iFlagStartMediaplayer=3;
                             } catch (IllegalStateException e) {
                                 e.printStackTrace();
@@ -448,6 +492,7 @@ public class ArduinoMain extends ActionBarActivity {
 
                             try {
                                 mediaPlayer.start();
+                                Toast.makeText(ArduinoMain.this,"Part C",Toast.LENGTH_SHORT).show();
                                 iFlagStartMediaplayer=0;
                             } catch (IllegalStateException e) {
                                 e.printStackTrace();
@@ -456,7 +501,7 @@ public class ArduinoMain extends ActionBarActivity {
 
                         if (intTestTimeinMin==59){
                             startLEDloop=0;
-                            LEDflag=0;
+                            setLEDinitTimeflag=0;
                         }
 
                         rVal = 60+3*intTestTimeinMin;

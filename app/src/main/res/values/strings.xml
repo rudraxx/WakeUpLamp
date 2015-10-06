@@ -5,6 +5,11 @@
     <string name="action_settings">Settings</string>
     <string name="title_activity_arduino_main">ArduinoInterface</string>
     <string name="title_activity_splash">WakeLamp</string>
-    <string name="songName">mom_voice_recording</string>
+    <string name="birdysong">birdysong</string>
+    <string name="mom_voice_recording">mom_voice_recording</string>
+    <string-array name="songNames">
+        <item>birdysong</item>
+        <item>mom_voice_recording</item>
+    </string-array>
 
 </resources>

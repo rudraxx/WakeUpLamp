@@ -155,5 +155,13 @@
         android:layout_alignTop="@+id/bSethour"
         android:layout_alignStart="@+id/bSound" />
 
+    <Spinner
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/spinner"
+        android:layout_below="@+id/eSetHour"
+        android:layout_alignParentStart="true"
+        android:spinnerMode="dropdown" />
+
 
 </RelativeLayout>
