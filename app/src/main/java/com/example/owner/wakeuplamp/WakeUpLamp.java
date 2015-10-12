@@ -120,21 +120,29 @@ public class WakeUpLamp extends ActionBarActivity {
 
     }
 
-    // Set up on-click listener for the listview
-    private AdapterView.OnItemClickListener mDeviceClickListener = new AdapterView.OnItemClickListener()
+
+// Set up on-click listener for the listview
+private AdapterView.OnItemClickListener mDeviceClickListener = new AdapterView.OnItemClickListener()
+{
+    public void onItemClick(AdapterView<?> av, View v, int arg2, long arg3)
     {
-        public void onItemClick(AdapterView<?> av, View v, int arg2, long arg3)
-        {
+        try {
             textConnectionStatus.setText("Connecting...");
             // Get the device MAC address, which is the last 17 chars in the View
             String info = ((TextView) v).getText().toString();
             String address = info.substring(info.length() - 17);
+            Toast.makeText(WakeUpLamp.this,"Address : "+ address,Toast.LENGTH_SHORT).show();
 
             // Make an intent to start next activity while taking an extra which is the MAC address.
-            Intent i = new Intent(WakeUpLamp.this, ArduinoMain.class);
-            i.putExtra(EXTRA_DEVICE_ADDRESS, address);
-            startActivity(i);
+            Intent newIntent = new Intent(WakeUpLamp.this, ArduinoMain.class);
+            newIntent.putExtra(EXTRA_DEVICE_ADDRESS, address);
+            startActivity(newIntent);
+            Toast.makeText(WakeUpLamp.this,"Starting activity.",Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(WakeUpLamp.this,"Couldn't Start activity.Click Again",Toast.LENGTH_SHORT).show();
         }
-    };
+    }
+};
 
 }

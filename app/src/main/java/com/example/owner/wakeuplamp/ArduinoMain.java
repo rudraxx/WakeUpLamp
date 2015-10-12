@@ -45,15 +45,13 @@ public class ArduinoMain extends ActionBarActivity {
 //    //TObeimplemented:
 // USe NFC for autoenable
 // Use gears for stand
-    // sync with sunrise time at any location to ensure the lighting starts at that time.
-
-    //Declare buttons & editText
-//    Button disconnect;
-
-//    private EditText editText;
+// sync with sunrise time at any location to ensure the lighting starts at that time.
+// USe Accelerometer for switching on the light in the middle of night by just shaking it.
 
     //Memeber Fields
     private BluetoothAdapter btAdapter = null;
+    private BluetoothDevice device = null;
+
     private BluetoothSocket btSocket = null;
     public OutputStream outStream = null;
 
@@ -87,7 +85,6 @@ public class ArduinoMain extends ActionBarActivity {
 
     Integer intHour = 6;
     Integer intMins = 6;
-    Integer intFlag=0;
     private volatile boolean done = false;
     Spinner spinner;
     ArrayAdapter<CharSequence> spinAdapter;
@@ -123,9 +120,6 @@ public class ArduinoMain extends ActionBarActivity {
         checkBTState();
 
         showTime = (TextView) findViewById(R.id.tvTime);
-//        showHours = (TextView) findViewById(R.id.tvHour);
-//        showMin = (TextView) findViewById(R.id.tvMin);
-//        showSec = (TextView) findViewById(R.id.tvSec);
 
         final Button disconnect = (Button) findViewById(R.id.bDisableBlueTooth);
         final Button buttonSound = (Button) findViewById(R.id.bSound);
@@ -166,7 +160,13 @@ public class ArduinoMain extends ActionBarActivity {
         newAddress = intent.getStringExtra(WakeUpLamp.EXTRA_DEVICE_ADDRESS);
 
         // Set up a pointer to the remote device using its address.
-        BluetoothDevice device = btAdapter.getRemoteDevice(newAddress);
+        try {
+            device = btAdapter.getRemoteDevice(newAddress);
+        } catch (Exception e) {
+            Toast.makeText(getBaseContext(), "getRemoteDevice error", Toast.LENGTH_SHORT).show();
+
+            e.printStackTrace();
+        }
 
         //Attempt to create a bluetooth socket for comms
         try {
@@ -176,16 +176,31 @@ public class ArduinoMain extends ActionBarActivity {
             Toast.makeText(getBaseContext(), "ERROR - Could not create Bluetooth socket", Toast.LENGTH_SHORT).show();
         }
 
-        // Establish the connection.
-        try {
-            btSocket.connect();
-        } catch (IOException e) {
+        // Establish the connection. Try 3 times before exiting.
+
+        int count = 1;
+        int maxTries = 4;
+        boolean success = false;
+        while(!success) {
             try {
-                btSocket.close();        //If IO exception occurs attempt to close socket
-            } catch (IOException e2) {
-                Toast.makeText(getBaseContext(), "ERROR - Could not close Bluetooth socket", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getBaseContext(), "Connection Attempt : "+count, Toast.LENGTH_SHORT).show();
+                btSocket.connect();
+                success = true;
+
+            } catch (IOException e) {
+                // handle exception
+                if (++count == maxTries){ // Exit if conn fails even after the maxTries.
+                    try {
+                        btSocket.close();        //If IO exception occurs attempt to close socket
+                    } catch (IOException e1) {
+                        e1.printStackTrace();
+                    }
+                    break;
+                }
+
             }
         }
+
 
         // Create a data stream so we can talk to the device
         try {
@@ -337,12 +352,6 @@ public class ArduinoMain extends ActionBarActivity {
 
     }
 
-//    //takes the UUID and creates a comms socket
-//    private BluetoothSocket createBluetoothSocket(BluetoothDevice device) throws IOException {
-//
-//        return device.createRfcommSocketToServiceRecord(MY_UUID);
-//    }
-
     //same as in device list activity
     private void checkBTState() {
         // Check device has Bluetooth and that it is turned on
@@ -351,6 +360,7 @@ public class ArduinoMain extends ActionBarActivity {
             finish();
         } else {
             if (btAdapter.isEnabled()) {
+//                Toast.makeText(getBaseContext(),"Bluetooth is ON",Toast.LENGTH_SHORT).show();
             } else {
                 //Prompt user to turn on Bluetooth
                 Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
@@ -386,10 +396,6 @@ public class ArduinoMain extends ActionBarActivity {
             mHandler.postDelayed(mStatusChecker,mInterval);
         }
     };
-
-//    ExecutorService threadPoolExecutor = Executors.newSingleThreadExecutor();
-//
-//    Future mStatusCheckerFuture = threadPoolExecutor.submit(mStatusChecker);
 
 
     public void updateStatus(){
@@ -606,12 +612,6 @@ public class ArduinoMain extends ActionBarActivity {
 
             return response;
         }
-
-//        @Override
-//        protected void onPostExecute(String result) {
-//            TextView textOutput = (TextView)findViewById(R.id.tvOutput);
-//            textOutput.setText(result);
-//        }
 
         private String readStream(InputStream in) {
             BufferedReader reader = null;
