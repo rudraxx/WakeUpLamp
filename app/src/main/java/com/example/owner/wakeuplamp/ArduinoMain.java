@@ -4,6 +4,10 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -40,7 +44,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 
-public class ArduinoMain extends ActionBarActivity {
+public class ArduinoMain extends ActionBarActivity implements SensorEventListener{
 
 //    //TObeimplemented:
 // USe NFC for autoenable
@@ -104,6 +108,16 @@ public class ArduinoMain extends ActionBarActivity {
     public int startLEDloop =0;
     public int iFlagStartMediaplayer = 0;
     public int resID=0;
+
+    // Stuff for the accelerometer
+    private static final int threshold = 25;
+    public int currState =0;
+    Sensor accelerometer;
+    SensorManager smanager;
+    //    TextView accel_x,accel_y,accel_z,acceleration, acc_magnitude, tvShake,tvState;
+    private long lastUpdate = 0;
+    public int moonlightFlag=0;
+
     /**
      * Called when the activity is first created.
      */
@@ -128,7 +142,8 @@ public class ArduinoMain extends ActionBarActivity {
         editsethour = (EditText) findViewById(R.id.eSetHour);
         editsetMinutes = (EditText) findViewById(R.id.eSetMin);
         mediaPlayer = new MediaPlayer();
-        mediaPlayer = MediaPlayer.create(ArduinoMain.this,R.raw.birdysong);
+        mediaPlayer = MediaPlayer.create(ArduinoMain.this, R.raw.birdysong);
+
 
         spinner        = (Spinner) findViewById(R.id.spinner);
         spinAdapter   = ArrayAdapter.createFromResource(this,R.array.songNames,android.R.layout.simple_spinner_item);
@@ -139,12 +154,12 @@ public class ArduinoMain extends ActionBarActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 strSongName = parent.getItemAtPosition(position).toString();
-                Toast.makeText(getBaseContext(),strSongName +" selected",Toast.LENGTH_SHORT).show();
-                String fname=strSongName.toLowerCase();
-                resID=getResources().getIdentifier(fname, "raw", getPackageName());
+                Toast.makeText(getBaseContext(), strSongName + " selected", Toast.LENGTH_SHORT).show();
+                String fname = strSongName.toLowerCase();
+                resID = getResources().getIdentifier(fname, "raw", getPackageName());
 
                 mediaPlayer.release();
-                mediaPlayer=MediaPlayer.create(ArduinoMain.this, resID);
+                mediaPlayer = MediaPlayer.create(ArduinoMain.this, resID);
 
             }
 
@@ -153,7 +168,6 @@ public class ArduinoMain extends ActionBarActivity {
 
             }
         });
-
 
         //Get MAC address from WakeUpLampActivity
         Intent intent = getIntent();
@@ -225,30 +239,30 @@ public class ArduinoMain extends ActionBarActivity {
 
                     // Calculate the duration of sleep hours
                     difference = System.currentTimeMillis() - startTime;
-                    differenceInSeconds = difference/ DateUtils.SECOND_IN_MILLIS;
+                    differenceInSeconds = difference / DateUtils.SECOND_IN_MILLIS;
                     // format difference in time as HH:MM:SS or MM:SS
                     String formatted = DateUtils.formatElapsedTime(differenceInSeconds);
 
-                    differenceInMinutes = differenceInSeconds/60;
+                    differenceInMinutes = differenceInSeconds / 60;
                     String strDiff = String.valueOf(differenceInMinutes);
                     // Write the duration to file.
                     writeFile(fileName, formatted, 3); // Sending hours slept parameters.
 
                     // Update Thingspeak channel. Channel name is Sleep
                     OperationGetRequest request = new OperationGetRequest();
-                    request.execute("https://api.thingspeak.com/update.html?key=XB4Y8F458TQXVGN9&field1="+strDiff);
+                    request.execute("https://api.thingspeak.com/update.html?key=XB4Y8F458TQXVGN9&field1=" + strDiff);
 
                     done = true;
                     btSocket.close();
-                    if (mediaPlayer.isPlaying()){
+                    if (mediaPlayer.isPlaying()) {
                         mediaPlayer.stop();
                         mediaPlayer.release();
                     }
                     mHandler.removeCallbacks(mStatusChecker);
 
                     // Reset the flags:
-                    setLEDinitTimeflag=0;
-                    startLEDloop=0;
+                    setLEDinitTimeflag = 0;
+                    startLEDloop = 0;
 //                    btAdapter.disable();
                     Toast.makeText(getBaseContext(), "Done disabling", Toast.LENGTH_SHORT).show();
 
@@ -277,12 +291,12 @@ public class ArduinoMain extends ActionBarActivity {
                 try {
                     // Need this startMusicFlag so that the start and stop music button can
                     // be used without interference from the runnable loop
-                    startMusicFlag=0;
+                    startMusicFlag = 0;
                     mediaPlayer.release();
-                    mediaPlayer=MediaPlayer.create(ArduinoMain.this, resID);
+                    mediaPlayer = MediaPlayer.create(ArduinoMain.this, resID);
                 } catch (IllegalStateException e) {
                     e.printStackTrace();
-                    Toast.makeText(ArduinoMain.this,"Unable to close Mediaplayer",Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ArduinoMain.this, "Unable to close Mediaplayer", Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -292,21 +306,27 @@ public class ArduinoMain extends ActionBarActivity {
             public void onClick(View v) {
                 intHour = Integer.valueOf(editsethour.getText().toString());
                 intMins = Integer.valueOf(editsetMinutes.getText().toString());
-                String strTime = "Set Time: "+intHour+":"+intMins;
-                Toast.makeText(ArduinoMain.this,strTime,Toast.LENGTH_SHORT).show();
+                String strTime = "Set Time: " + intHour + ":" + intMins;
+                Toast.makeText(ArduinoMain.this, strTime, Toast.LENGTH_SHORT).show();
 //                fileName = "File_1";//+cal.getTime().toString(); // THis is where the filename to be saved gets assigned.
 
-                Toast.makeText(ArduinoMain.this,"FileName: "+fileName,Toast.LENGTH_SHORT).show();
+                Toast.makeText(ArduinoMain.this, "FileName: " + fileName, Toast.LENGTH_SHORT).show();
                 mediaPlayer.release();
-                mediaPlayer=MediaPlayer.create(ArduinoMain.this, resID);
+                mediaPlayer = MediaPlayer.create(ArduinoMain.this, resID);
 
                 startTime = System.currentTimeMillis();
                 writeFile(fileName, cal.getTime().toString(), 1);
             }
         });
 
+        // Accelerometer stuff:
+        smanager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        accelerometer = smanager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        smanager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+
 
     }
+
 
     @Override
     public void onResume() {
@@ -351,6 +371,61 @@ public class ArduinoMain extends ActionBarActivity {
 
 
     }
+
+    // Accelerometer override methods
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+
+        Sensor mySensor = event.sensor;
+        if (mySensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+
+            float x = event.values[0];
+            float y = event.values[1];
+            float z = event.values[2];
+
+//                    acceleration.setText(("X: " + x) +
+//                            " \nY: " + y +
+//                            "\nZ: " + z);
+
+            float ans = x * x + y * y + z * z;
+            double ans2 = Math.sqrt(ans);
+//                    String result = String.format("%.2f", ans2);
+//                    acc_magnitude.setText(result);//+(Math.pow(Double.valueOf(event.values[1]),2)+(Math.pow(event.values[2]),2)));
+
+
+            if (ans2 > threshold) {
+
+                long curTime = System.currentTimeMillis();
+                if ((curTime - lastUpdate) > 2000) {
+
+                    lastUpdate = curTime;
+
+                    if (currState == 0) {
+                        sendData("<R" + 30 + "G" + 30 + "B" + 35 + ">" + "\n");
+
+                        Toast.makeText(ArduinoMain.this, "State Changed: 0 to 1", Toast.LENGTH_SHORT).show();
+//                                tvState.setText("1");
+                        moonlightFlag = 1;
+                        currState = 1;
+                    } else if (currState == 1) {
+
+                        sendData("<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
+                        Toast.makeText(ArduinoMain.this, "State Changed: 1 to 0", Toast.LENGTH_SHORT).show();
+//                                tvState.setText("0");
+                        moonlightFlag = 0;
+                        currState = 0;
+                    }
+                }
+            }
+        }
+
+    }
+
 
     //same as in device list activity
     private void checkBTState() {
@@ -519,7 +594,7 @@ public class ArduinoMain extends ActionBarActivity {
                 }
                 else {
 
-                    if (startMusicFlag==1){
+                    if ((startMusicFlag==1) || (moonlightFlag == 1)){
                         //Do nothing. Otherwise the media player stops even when
                         // I try to use the play sound button
                     }
