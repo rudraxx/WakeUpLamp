@@ -43,14 +43,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import com.example.owner.wakeuplamp.HelperClass;
+import com.example.owner.wakeuplamp.IOTConnectClass;
 
 public class ArduinoMain extends ActionBarActivity implements SensorEventListener{
 
 //    //TObeimplemented:
-// USe NFC for autoenable
+// USe NFC for auto enable
 // Use gears for stand
 // sync with sunrise time at any location to ensure the lighting starts at that time.
-// USe Accelerometer for switching on the light in the middle of night by just shaking it.
+// USe Accelerometer for switching on the light in the middle of night by just shaking it. - DONE
 
     //Memeber Fields
     private BluetoothAdapter btAdapter = null;
@@ -76,7 +78,6 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
     private int mInterval = 1000; // 5 seconds by default, can be changed later
     private Handler mHandler;
 
-//    Button buttonSound;
     Button buttonStop;
     private MediaPlayer mediaPlayer;
 
@@ -117,6 +118,8 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
     //    TextView accel_x,accel_y,accel_z,acceleration, acc_magnitude, tvShake,tvState;
     private long lastUpdate = 0;
     public int moonlightFlag=0;
+
+    HelperClass secondHelperClass = new HelperClass();
 
     /**
      * Called when the activity is first created.
@@ -190,8 +193,7 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
             Toast.makeText(getBaseContext(), "ERROR - Could not create Bluetooth socket", Toast.LENGTH_SHORT).show();
         }
 
-        // Establish the connection. Try 3 times before exiting.
-
+        // Establish the bluetooth connection. Try 3 times before exiting.
         int count = 1;
         int maxTries = 4;
         boolean success = false;
@@ -215,7 +217,6 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
             }
         }
 
-
         // Create a data stream so we can talk to the device
         try {
             outStream = btSocket.getOutputStream();
@@ -224,7 +225,7 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
         }
         //When activity is resumed, attempt to send a piece of junk data ('x') so that it will fail if not connected
         // i.e don't wait for a user to press button to recognise connection failure
-        sendData("x");
+        secondHelperClass.sendData(outStream, ArduinoMain.this,"x");
 
         mHandler = new Handler();
         startRepeatingTask();
@@ -234,8 +235,8 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
             public void onClick(View v) {
                 try {
 
-                    sendData("<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
-                    writeFile(fileName, cal.getTime().toString(), 2); // Sending wake up parameters
+                    secondHelperClass.sendData(outStream, ArduinoMain.this, "<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
+                    secondHelperClass.writeFile(ArduinoMain.this,fileName, cal.getTime().toString(), 2); // Sending wake up parameters
 
                     // Calculate the duration of sleep hours
                     difference = System.currentTimeMillis() - startTime;
@@ -246,10 +247,11 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
                     differenceInMinutes = differenceInSeconds / 60;
                     String strDiff = String.valueOf(differenceInMinutes);
                     // Write the duration to file.
-                    writeFile(fileName, formatted, 3); // Sending hours slept parameters.
+                    secondHelperClass.writeFile(ArduinoMain.this,fileName, formatted, 3); // Sending hours slept parameters.
 
                     // Update Thingspeak channel. Channel name is Sleep
-                    OperationGetRequest request = new OperationGetRequest();
+//                    OperationGetRequest request = new OperationGetRequest();
+                    IOTConnectClass request = new IOTConnectClass();
                     request.execute("https://api.thingspeak.com/update.html?key=XB4Y8F458TQXVGN9&field1=" + strDiff);
 
                     done = true;
@@ -315,7 +317,7 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
                 mediaPlayer = MediaPlayer.create(ArduinoMain.this, resID);
 
                 startTime = System.currentTimeMillis();
-                writeFile(fileName, cal.getTime().toString(), 1);
+                secondHelperClass.writeFile(ArduinoMain.this, fileName, cal.getTime().toString(), 1);
             }
         });
 
@@ -357,7 +359,7 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
         // even when the app is in the background. Hence, closing it in the onDestroy().
         //Close BT socket to device
         try {
-            sendData("<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
+            secondHelperClass.sendData(outStream, ArduinoMain.this, "<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
             done = true;
             btSocket.close();
             mediaPlayer.release();
@@ -388,15 +390,8 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
             float y = event.values[1];
             float z = event.values[2];
 
-//                    acceleration.setText(("X: " + x) +
-//                            " \nY: " + y +
-//                            "\nZ: " + z);
-
             float ans = x * x + y * y + z * z;
             double ans2 = Math.sqrt(ans);
-//                    String result = String.format("%.2f", ans2);
-//                    acc_magnitude.setText(result);//+(Math.pow(Double.valueOf(event.values[1]),2)+(Math.pow(event.values[2]),2)));
-
 
             if (ans2 > threshold) {
 
@@ -406,26 +401,22 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
                     lastUpdate = curTime;
 
                     if (currState == 0) {
-                        sendData("<R" + 30 + "G" + 30 + "B" + 35 + ">" + "\n");
+                        secondHelperClass.sendData(outStream, ArduinoMain.this,"<R" + 30 + "G" + 30 + "B" + 35 + ">" + "\n");
 
                         Toast.makeText(ArduinoMain.this, "State Changed: 0 to 1", Toast.LENGTH_SHORT).show();
-//                                tvState.setText("1");
                         moonlightFlag = 1;
                         currState = 1;
                     } else if (currState == 1) {
 
-                        sendData("<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
+                        secondHelperClass.sendData(outStream, ArduinoMain.this, "<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
                         Toast.makeText(ArduinoMain.this, "State Changed: 1 to 0", Toast.LENGTH_SHORT).show();
-//                                tvState.setText("0");
                         moonlightFlag = 0;
                         currState = 0;
                     }
                 }
             }
         }
-
     }
-
 
     //same as in device list activity
     private void checkBTState() {
@@ -444,19 +435,6 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
         }
     }
 
-    // Method to send data
-    private void sendData(String message) {
-        byte[] msgBuffer = message.getBytes();
-
-        try {
-            //attempt to place data on the outstream to the BT device
-            outStream.write(msgBuffer);
-        } catch (IOException e) {
-            //if the sending fails this is most likely because device is no longer there
-            Toast.makeText(getBaseContext(), "ERROR - Send Data error", Toast.LENGTH_SHORT).show();
-            finish();
-        }
-    }
 
     void startRepeatingTask() {
         if(!done) {
@@ -525,9 +503,7 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
                         }
 
                         rVal = 30+3*intTestTimeinMin;
-                        sendData("<R" + rVal + "G" + 0 + "B" + 0 + ">" + "\n");
-//                        Toast.makeText(ArduinoMain.this, "intTestTimeinSec="+intTestTimeinSec, Toast.LENGTH_SHORT).show();
-//                        Toast.makeText(ArduinoMain.this, "Rval="+rVal, Toast.LENGTH_SHORT).show();
+                        secondHelperClass.sendData(outStream, ArduinoMain.this, "<R" + rVal + "G" + 0 + "B" + 0 + ">" + "\n");
                     }
 
                     if(intTestTimeinMin>20 && intTestTimeinMin<40){
@@ -552,23 +528,11 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
 
                         rVal = 10+4*intTestTimeinMin;
                         gVal = 2*intTestTimeinMin-20;
-                        sendData("<R" + rVal + "G" + gVal + "B" + 0 + ">" + "\n");
-//                        Toast.makeText(ArduinoMain.this, String.valueOf(cal.get(Calendar.MINUTE)), Toast.LENGTH_SHORT).show();
+                        secondHelperClass.sendData(outStream, ArduinoMain.this, "<R" + rVal + "G" + gVal + "B" + 0 + ">" + "\n");
                     }
 
                     if (intTestTimeinMin>40 && intTestTimeinMin<60){
                         // Start the sound after about 40 mins of light
-////                        if (intFlag==0){
-//                            try {
-//                                mediaPlayer.seekTo(0);
-//                                mediaPlayer.start();
-////                                mediaPlayer.setLooping(true);
-////                                Toast.makeText(ArduinoMain.this, "Media Started",Toast.LENGTH_SHORT).show();
-////                                intFlag =1;
-//                            } catch (IllegalStateException e) {
-//                                e.printStackTrace();
-//                            }
-////                        }
                         if (iFlagStartMediaplayer==3){
 
                             try {
@@ -587,7 +551,7 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
 
                         rVal = 60+3*intTestTimeinMin;
                         gVal = 2*intTestTimeinMin-60;
-                        sendData("<R" + rVal + "G" + gVal + "B" + 0 + ">" + "\n");
+                        secondHelperClass.sendData(outStream, ArduinoMain.this, "<R" + rVal + "G" + gVal + "B" + 0 + ">" + "\n");
 //                        Toast.makeText(ArduinoMain.this,String.valueOf(cal.get(Calendar.MINUTE)),Toast.LENGTH_SHORT).show();
                     }
 
@@ -600,7 +564,7 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
                     }
                     else{
 
-                        sendData("<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
+                        secondHelperClass.sendData(outStream, ArduinoMain.this,"<R" + 0 + "G" + 0 + "B" + 0 + ">" + "\n");
                         try {
                             mediaPlayer.stop();
                             mediaPlayer.prepare();
@@ -611,105 +575,8 @@ public class ArduinoMain extends ActionBarActivity implements SensorEventListene
                     }
 
                 }
-//                sendData("<R" + 4 * cal.get(Calendar.SECOND) + "G" + 2 * cal.get(Calendar.SECOND) + "B" + 3 * cal.get(Calendar.SECOND) + ">" + "\n");
-
-
-
             }
         });
-    }
-
-    // Function to write to disk.
-    // Mode 1 - Record Start Sleep;
-    // Mode 2-  Record Wake up ;
-    // Mode 3 - Record Difference - Sleep hours;
-
-    public void writeFile(String fileName, String inData, int mode)
-    {
-        File file;
-        FileOutputStream outputStream;
-
-        try {
-//            file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),fileName);
-            file = new File(Environment.getExternalStorageDirectory()+"/TestData",fileName);
-
-//            outputStream = new FileOutputStream(file);
-            outputStream = new FileOutputStream(file, true); // allow appending to the file.
-
-//            outputStream.write(v.getText().toString().getBytes());
-            if (mode==1){ // If recording the sleep start time.
-                outputStream.write(System.getProperty("line.separator").getBytes()); // Start on new line;
-                outputStream.write(("Sleep start time:  " + inData).getBytes()); // Print the current time.
-                outputStream.write(("   ").getBytes()); // Spacing of 1 tabs
-
-                Toast.makeText(this,"Start sleep time recorded",Toast.LENGTH_SHORT).show();
-
-            }
-            else if(mode==2){
-                outputStream.write(("Wake up time:  " + inData).getBytes()); // Print the current time.
-                Toast.makeText(this,"Wake time recorded",Toast.LENGTH_SHORT).show();
-                outputStream.write(("   ").getBytes()); // Spacing of 1 tabs
-
-            }
-            else if(mode==3){
-                outputStream.write(("Hours slept:  " + inData).getBytes()); // Print the current time.
-                Toast.makeText(this,"Hours slept = "+inData,Toast.LENGTH_SHORT).show();
-
-            }
-            outputStream.close();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    private class OperationGetRequest extends AsyncTask<String,Void,String > {
-
-
-        @Override
-        protected String doInBackground(String... strings) {
-            URL myURL;
-            HttpURLConnection urlConnection = null;
-            String response = "";
-            try {
-                myURL = new URL(strings[0]);
-                urlConnection = (HttpURLConnection) myURL.openConnection();
-                InputStream in = new BufferedInputStream(urlConnection.getInputStream());
-                response = readStream(in);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }finally {
-                if (urlConnection!=null) {
-                    urlConnection.disconnect();
-                }
-            }
-
-            return response;
-        }
-
-        private String readStream(InputStream in) {
-            BufferedReader reader = null;
-            StringBuffer response = new StringBuffer();
-            try {
-                reader = new BufferedReader(new InputStreamReader(in));
-                String line = "";
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                if (reader != null) {
-                    try {
-                        reader.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-            return response.toString();
-        }
     }
 
 }
